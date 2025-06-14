@@ -46,6 +46,11 @@
             justify-content: center;
             background: linear-gradient(135deg, var(--primary-color) 0%, #4f46e5 100%);
             padding: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 9999;
         }
 
         .login-card {
@@ -108,17 +113,9 @@
             text-align: left;
         }
 
-        .login-form.hidden {
-            display: none;
-        }
-
         .container {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        .container.hidden {
             display: none;
+            min-height: 100vh;
         }
 
         /* Sidebar */
@@ -751,7 +748,7 @@
             </form>
 
             <!-- Register Form -->
-            <form class="login-form hidden" id="registerForm">
+            <form class="login-form" id="registerForm" style="display: none;">
                 <div class="form-group">
                     <label class="form-label">Nome Completo</label>
                     <input type="text" class="form-input" id="registerName" required>
@@ -1049,12 +1046,12 @@
             tabs.forEach(t => t.classList.remove('active'));
             
             if (tab === 'login') {
-                loginForm.classList.remove('hidden');
-                registerForm.classList.add('hidden');
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
                 tabs[0].classList.add('active');
             } else {
-                loginForm.classList.add('hidden');
-                registerForm.classList.remove('hidden');
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
                 tabs[1].classList.add('active');
             }
         }
@@ -1062,8 +1059,13 @@
         function login(event) {
             event.preventDefault();
             
-            const email = document.getElementById('loginEmail').value;
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const password = document.getElementById('loginPassword').value;
+            
+            if (!email || !password) {
+                showToast('Por favor, preencha todos os campos!', 'error');
+                return;
+            }
             
             // Get users from localStorage
             const users = JSON.parse(localStorage.getItem('crm_users') || '{}');
@@ -1073,6 +1075,9 @@
                 localStorage.setItem('crm_current_user', email);
                 showApp();
                 showToast('Login realizado com sucesso!', 'success');
+                
+                // Clear form
+                document.getElementById('loginForm').reset();
             } else {
                 showToast('Email ou senha incorretos!', 'error');
             }
@@ -1081,10 +1086,20 @@
         function register(event) {
             event.preventDefault();
             
-            const name = document.getElementById('registerName').value;
-            const email = document.getElementById('registerEmail').value;
+            const name = document.getElementById('registerName').value.trim();
+            const email = document.getElementById('registerEmail').value.trim().toLowerCase();
             const password = document.getElementById('registerPassword').value;
             const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+            
+            if (!name || !email || !password || !passwordConfirm) {
+                showToast('Por favor, preencha todos os campos!', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showToast('A senha deve ter pelo menos 6 caracteres!', 'error');
+                return;
+            }
             
             if (password !== passwordConfirm) {
                 showToast('As senhas não coincidem!', 'error');
@@ -1123,31 +1138,31 @@
             
             currentUser = email;
             localStorage.setItem('crm_current_user', email);
+            
+            // Clear form
+            document.getElementById('registerForm').reset();
+            
             showApp();
-            showToast('Conta criada com sucesso!', 'success');
+            showToast('Conta criada com sucesso! Bem-vindo ao CRM Pro!', 'success');
         }
 
         function logout() {
-            currentUser = null;
-            localStorage.removeItem('crm_current_user');
-            document.getElementById('loginContainer').classList.remove('hidden');
-            document.getElementById('mainApp').classList.add('hidden');
-            
-            // Reset forms
-            document.getElementById('loginForm').reset();
-            document.getElementById('registerForm').reset();
-            
-            showToast('Logout realizado com sucesso!', 'success');
+            if (confirm('Tem certeza que deseja sair?')) {
+                currentUser = null;
+                localStorage.removeItem('crm_current_user');
+                showLogin();
+                showToast('Logout realizado com sucesso!', 'success');
+            }
         }
 
         function showApp() {
-            document.getElementById('loginContainer').classList.add('hidden');
-            document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'flex';
             
             // Update user info
             const users = JSON.parse(localStorage.getItem('crm_users') || '{}');
             const userData = getUserData();
-            const userName = userData.settings.name || users[currentUser].name;
+            const userName = userData.settings.name || users[currentUser]?.name || 'Usuário';
             
             document.getElementById('currentUserName').textContent = userName;
             document.getElementById('profileBtn').textContent = userName.charAt(0).toUpperCase();
@@ -1157,6 +1172,23 @@
             updateClientsTable();
             updateFunnelsList();
             loadSettings();
+            
+            // Reset page to dashboard
+            showPage('dashboard');
+        }
+
+        function showLogin() {
+            document.getElementById('loginContainer').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+            
+            // Reset forms
+            document.getElementById('loginForm').reset();
+            document.getElementById('registerForm').reset();
+            
+            // Show login tab by default
+            setTimeout(() => {
+                switchTab('login');
+            }, 100);
         }
 
         function checkAuth() {
@@ -1169,6 +1201,7 @@
                     return true;
                 }
             }
+            showLogin();
             return false;
         }
 
@@ -1292,8 +1325,13 @@
             // Show selected page
             document.getElementById(page).classList.add('active');
             
-            // Update nav active state
-            event.target.closest('.nav-item').classList.add('active');
+            // Update nav active state - find the correct nav item
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                if (item.onclick && item.onclick.toString().includes(`'${page}'`)) {
+                    item.classList.add('active');
+                }
+            });
             
             // Update page title
             const titles = {
@@ -1876,12 +1914,19 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadTheme();
             
+            // Initialize login/app state
+            document.getElementById('loginContainer').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+            
+            // Initialize login form display
+            setTimeout(() => {
+                switchTab('login');
+            }, 100);
+            
             // Check if user is already logged in
-            if (!checkAuth()) {
-                // Show login screen
-                document.getElementById('loginContainer').classList.remove('hidden');
-                document.getElementById('mainApp').classList.add('hidden');
-            }
+            setTimeout(() => {
+                checkAuth();
+            }, 200);
         });
     </script>
 </body>
